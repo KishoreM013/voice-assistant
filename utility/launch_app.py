@@ -1,52 +1,51 @@
 import sys
-from ctypes import cast, POINTER
-from comtypes import CLSCTX_ALL
-from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+import pyautogui
+import time
+import os
 
-def set_volume(level_str):
+def launch_application(app_name):
     """
-    Sets or adjusts the system master volume.
-    Accepts an absolute number (e.g., "50") or a relative adjustment (e.g., "+10", "-10").
+    Launches an application by first trying a direct command,
+    then falling back to GUI automation if the direct command might fail.
     """
+    print(f"Attempting to open '{app_name}'...")
+
+    # --- Method 1: Direct Command (Fast and Reliable) ---
+    # This is the preferred method for known apps or apps in the system PATH.
+    # The 'start' command is robust for this. We use os.system to run it.
+    # The return code 0 usually indicates success.
+    # We add empty quotes `""` as a best practice for the `start` command.
+    if os.system(f'start "" "{app_name}"') == 0:
+        print(f"Successfully launched '{app_name}' using the start command.")
+        return
+
+    # --- Method 2: GUI Automation (Fallback) ---
+    # If the start command fails (returns a non-zero exit code),
+    # use pyautogui to simulate keyboard input as requested.
+    print(f"Start command might have failed. Falling back to GUI automation...")
     try:
-        # Get the default audio playback device
-        devices = AudioUtilities.GetSpeakers()
-        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-        volume = cast(interface, POINTER(IAudioEndpointVolume))
+        # 1. Press the Windows key to open the Start Menu
+        pyautogui.press('win')
+        time.sleep(1)  # Wait for the Start Menu to appear
 
-        # Check if the argument is for relative adjustment
-        if level_str.startswith('+') or level_str.startswith('-'):
-            current_volume_scalar = volume.GetMasterVolumeLevelScalar()
-            adjustment = float(level_str) / 100.0
-            new_volume_scalar = current_volume_scalar + adjustment
-            print(f"Adjusting volume by {level_str}%...")
-        
-        # Otherwise, assume it's an absolute level
-        else:
-            target_level = float(level_str)
-            new_volume_scalar = target_level / 100.0
-            print(f"Setting volume to {int(target_level)}%...")
+        # 2. Type the application name
+        pyautogui.write(app_name, interval=0.05)
+        time.sleep(1) # Wait for search results to appear
 
-        # Clamp the volume level to the valid range [0.0, 1.0]
-        new_volume_scalar = max(0.0, min(1.0, new_volume_scalar))
+        # 3. Press Enter to launch the application
+        pyautogui.press('enter')
         
-        # Set the new volume
-        volume.SetMasterVolumeLevelScalar(new_volume_scalar, None)
-        
-        print(f"Volume is now at {int(new_volume_scalar * 100)}%")
+        print(f"Sent keyboard commands to open '{app_name}'.")
 
-    except ValueError:
-        print("Error: Please provide a valid number (e.g., '50', '+10', '-10').")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred during GUI automation: {e}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python volume.py [level]")
-        print("  level: A number from 0 to 100, or a relative adjustment like '+10' or '-10'.")
-        print("\nExamples:")
-        print("  python volume.py 75    # Sets volume to 75%")
-        print("  python volume.py +10   # Increases volume by 10%")
-        print("  python volume.py -20   # Decreases volume by 20%")
+        print("Usage: python launch_app.py \"<application_name>\"")
+        print("\nExample:")
+        print("  python launch_app.py \"notepad\"")
+        print("  python launch_app.py \"Google Chrome\"")
     else:
-        set_volume(sys.argv[1])
+        application_name = sys.argv[1]
+        launch_application(application_name)
