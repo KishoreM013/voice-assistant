@@ -4,116 +4,116 @@ import psutil
 import subprocess
 import datetime
 import pyautogui
-import pygetwindow as gw
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from ctypes import cast, POINTER
 
-def get_system_info_text():
-    """
-    Gathers detailed system information for Windows and formats it into a single text block.
-    Includes OS, Hardware, Network, Battery, Display, and Audio details.
-    """
-    
-    # Helper to format bytes into a readable format (GB)
-    def bytes_to_gb(b):
-        return round(b / (1024**3), 2)
+# GPU detection is now handled by GPUtil
+try:
+    import GPUtil
+    gputil_available = True
+except ImportError:
+    gputil_available = False
 
-    # --- Start building the report string ---
-    info_text = ""
+def get_wifi_ssid():
+    """Retrieves the connected Wi-Fi SSID using 'netsh'."""
+    try:
+        output = subprocess.check_output(['netsh', 'wlan', 'show', 'interfaces'], text=True, stderr=subprocess.DEVNULL)
+        for line in output.split('\n'):
+            if 'SSID' in line and 'BSSID' not in line:
+                return line.split(':')[1].strip()
+    except Exception:
+        return None
+    return None
+
+def bytes_to_human_readable(b):
+    """Converts bytes into a human-readable format (GB, MB, KB)."""
+    if b is None: return "N/A"
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if b < 1024.0:
+            return f"{b:.2f} {unit}"
+        b /= 1024.0
+    return f"{b:.2f} PB"
+
+def get_detailed_system_info():
+    """Gathers an extensive list of system details and formats them."""
     
-    # 1. OS and Host Information
+    info_parts = []
+
+    # --- System & OS ---
     uname = platform.uname()
-    info_text += f"--- System Information ---\n"
-    info_text += f"OS        : {uname.system} {uname.release} ({platform.win32_ver()[0]})\n"
-    info_text += f"Arch      : {uname.machine}\n"
-    info_text += f"Hostname  : {socket.gethostname()}\n"
-    
-    # 2. Uptime
-    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
-    uptime = datetime.datetime.now() - boot_time
-    days, rem = divmod(uptime.total_seconds(), 86400)
-    hours, rem = divmod(rem, 3600)
-    minutes, _ = divmod(rem, 60)
-    info_text += f"Uptime    : {int(days)}d {int(hours)}h {int(minutes)}m\n"
+    info_parts.append("--- System & OS ---")
+    info_parts.append(f"OS              : {uname.system} {uname.release} ({platform.win32_ver()[0]})")
+    info_parts.append(f"Architecture    : {uname.machine}")
+    info_parts.append(f"Hostname        : {socket.gethostname()}")
+    bt = datetime.datetime.fromtimestamp(psutil.boot_time())
+    uptime = datetime.datetime.now() - bt
+    info_parts.append(f"Boot Time       : {bt.strftime('%Y-%m-%d %H:%M:%S')}")
+    info_parts.append(f"System Uptime   : {str(uptime).split('.')[0]}")
 
-    # 3. Motherboard (using WMIC)
-    try:
-        mobo_info = subprocess.check_output("wmic baseboard get product,Manufacturer", text=True, stderr=subprocess.DEVNULL).strip().split('\n')[-1].strip()
-        info_text += f"Motherboard: {mobo_info}\n"
-    except Exception:
-        info_text += "Motherboard: Not Found\n"
-
-    # 4. Hardware Section
-    info_text += "\n--- Hardware ---\n"
-    cpu_freq = psutil.cpu_freq()
-    info_text += f"CPU       : {platform.processor()}\n"
-    info_text += f"Cores     : {psutil.cpu_count(logical=False)} Physical, {psutil.cpu_count(logical=True)} Logical\n"
-    info_text += f"CPU Usage : {psutil.cpu_percent()}% \n"
-    try:
-        gpu_info = subprocess.check_output("wmic path Win32_VideoController get Name", text=True, stderr=subprocess.DEVNULL).strip().split('\n')[-1].strip()
-        info_text += f"GPU       : {gpu_info}\n"
-    except Exception:
-        info_text += "GPU       : Not Found\n"
-    svmem = psutil.virtual_memory()
-    info_text += f"Memory    : {bytes_to_gb(svmem.used)} GB / {bytes_to_gb(svmem.total)} GB ({svmem.percent}%)\n"
+    # --- CPU ---
+    info_parts.append("\n--- CPU ---")
+    info_parts.append(f"Model           : {platform.processor()}")
+    info_parts.append(f"Physical Cores  : {psutil.cpu_count(logical=False)}")
+    info_parts.append(f"Logical Cores   : {psutil.cpu_count(logical=True)}")
+    freq = psutil.cpu_freq()
+    info_parts.append(f"Max Frequency   : {freq.max:.2f} Mhz")
+    info_parts.append(f"Current Freq.   : {freq.current:.2f} Mhz")
+    info_parts.append(f"Total CPU Usage : {psutil.cpu_percent(interval=1)}%")
     
-    # 5. Battery (only if present)
-    battery = psutil.sensors_battery()
-    if battery:
-        info_text += "\n--- Battery ---\n"
-        status = "Charging" if battery.power_plugged else "Discharging"
-        time_left = "N/A"
-        if not battery.power_plugged and battery.secsleft is not None:
-            mins, secs = divmod(battery.secsleft, 60)
-            hrs, mins = divmod(mins, 60)
-            time_left = f"{hrs}h {mins}m left"
-        info_text += f"Status    : {battery.percent}% ({status})\n"
-        info_text += f"Time Left : {time_left}\n"
-        
-    # 6. Display and Audio
-    info_text += "\n--- Display & Audio ---\n"
-    try:
-        screen_size = pyautogui.size()
-        info_text += f"Resolution: {screen_size.width}x{screen_size.height}\n"
-    except Exception:
-        info_text += "Resolution: Not Found\n"
-    try:
-        devices = AudioUtilities.GetSpeakers()
-        interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-        volume = cast(interface, POINTER(IAudioEndpointVolume))
-        current_volume = int(volume.GetMasterVolumeLevelScalar() * 100)
-        info_text += f"Audio     : {current_volume}% ({devices.FriendlyName})\n"
-    except Exception:
-        info_text += "Audio     : Not Found\n"
+    # --- GPU (Corrected) ---
+    info_parts.append("\n--- GPU ---")
+    if gputil_available:
+        try:
+            gpus = GPUtil.getGPUs()
+            if gpus:
+                for i, gpu in enumerate(gpus):
+                    info_parts.append(f"GPU {i+1}           : {gpu.name}")
+                    info_parts.append(f"  - Load        : {gpu.load*100:.1f}%")
+                    info_parts.append(f"  - Temp        : {gpu.temperature} °C")
+                    info_parts.append(f"  - Memory Used : {bytes_to_human_readable(gpu.memoryUsed*1024*1024)} / {bytes_to_human_readable(gpu.memoryTotal*1024*1024)}")
+            else:
+                 info_parts.append("GPU             : No NVIDIA GPU detected by GPUtil.")
+        except Exception as e:
+            info_parts.append(f"GPU             : Error getting GPU details - {e}")
+    else:
+        info_parts.append("GPU             : GPUtil library not installed. Cannot get NVIDIA details.")
 
-    # 7. Network Information
-    info_text += "\n--- Network ---\n"
-    addrs = psutil.net_if_addrs()
-    for name, snics in addrs.items():
-        for snic in snics:
-            if snic.family == socket.AF_INET: # IPv4
-                if "Loopback" not in name and "VMware" not in name and "VirtualBox" not in name:
-                    info_text += f"Interface : {name}\n"
-                    info_text += f"IP Address: {snic.address}\n"
-                    break # Show first non-virtual IPv4 interface and move to next
+
+    # --- Memory (RAM) ---
+    mem = psutil.virtual_memory()
+    info_parts.append("\n--- Memory (RAM) ---")
+    info_parts.append(f"Total           : {bytes_to_human_readable(mem.total)}")
+    info_parts.append(f"Available       : {bytes_to_human_readable(mem.available)}")
+    info_parts.append(f"Used            : {bytes_to_human_readable(mem.used)} ({mem.percent}%)")
+
+    # --- Network ---
+    info_parts.append("\n--- Network ---")
+    wifi_name = get_wifi_ssid()
+    if wifi_name:
+        info_parts.append(f"Wi-Fi SSID      : {wifi_name}")
     
-    # 8. Storage
-    info_text += "\n--- Storage ---\n"
-    partitions = psutil.disk_partitions()
-    for p in partitions:
-        if p.fstype: # Only show mounted file systems
+    for if_name, if_addrs in psutil.net_if_addrs().items():
+        if "Loopback" in if_name: continue
+        for addr in if_addrs:
+            if addr.family == socket.AF_INET:
+                info_parts.append(f"Interface       : {if_name} (IP: {addr.address})")
+
+    # --- Storage ---
+    info_parts.append("\n--- Storage ---")
+    for part in psutil.disk_partitions():
+        if part.fstype and 'fixed' in part.opts:
             try:
-                usage = psutil.disk_usage(p.mountpoint)
-                info_text += f"Disk ({p.mountpoint}) : {bytes_to_gb(usage.used)} GB / {bytes_to_gb(usage.total)} GB ({usage.percent}%)\n"
+                usage = psutil.disk_usage(part.mountpoint)
+                info_parts.append(f"Disk ({part.mountpoint})      : {bytes_to_human_readable(usage.used)} / {bytes_to_human_readable(usage.total)} ({usage.percent}%)")
             except PermissionError:
                 continue
 
-    return info_text
+    return "\n".join(info_parts)
 
 if __name__ == "__main__":
-    system_details = get_system_info_text()
-    print(system_details)
-    with open("system_report.txt", "w") as f:
-        f.write(system_details)
-    print("\nReport also saved to system_report.txt")
+    system_report = get_detailed_system_info()
+    print(system_report)
+    with open("deep_system_report.txt", "w") as f:
+        f.write(system_report)
+    print("\nFull report also saved to deep_system_report.txt")
