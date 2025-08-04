@@ -1,0 +1,35 @@
+--- System Information ---
+OS        : Windows 11 (11)
+Arch      : AMD64
+Hostname  : tgktuf
+Uptime    : 0d 0h 11m
+Motherboard: Not Found
+
+--- Hardware ---
+CPU       : Intel64 Family 6 Model 141 Stepping 1, GenuineIntel
+Cores     : 6 Physical, 12 Logical
+CPU Usage : 17.0% 
+GPU       : Not Found
+Memory    : 8.45 GB / 15.74 GB (53.6%)
+
+--- Battery ---
+Status    : 23% (Discharging)
+Time Left : 1h 9m left
+
+--- Display & Audio ---
+Resolution: 1920x1080
+Audio     : Not Found
+
+--- Network ---
+Interface : Ethernet 4
+IP Address: 169.254.147.87
+Interface : Local Area Connection* 9
+IP Address: 169.254.151.133
+Interface : Local Area Connection* 10
+IP Address: 169.254.218.254
+Interface : WiFi
+IP Address: 192.168.137.19
+
+--- Storage ---
+Disk (C:\) : 130.55 GB / 201.69 GB (64.7%)
+Disk (G:\) : 134.11 GB / 201.69 GB (66.5%)

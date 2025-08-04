@@ -15,9 +15,9 @@ def launch_application(app_name):
     # The 'start' command is robust for this. We use os.system to run it.
     # The return code 0 usually indicates success.
     # We add empty quotes `""` as a best practice for the `start` command.
-    if os.system(f'start "" "{app_name}"') == 0:
-        print(f"Successfully launched '{app_name}' using the start command.")
-        return
+    # if os.system(f'start "" "{app_name}"') == 0:
+    #     print(f"Successfully launched '{app_name}' using the start command.")
+    #     return
 
     # --- Method 2: GUI Automation (Fallback) ---
     # If the start command fails (returns a non-zero exit code),
