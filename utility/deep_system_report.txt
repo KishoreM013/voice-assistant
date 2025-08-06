@@ -2,35 +2,35 @@
 OS              : Windows 11 (11)
 Architecture    : AMD64
 Hostname        : tgktuf
-Boot Time       : 2025-08-04 13:05:34
-System Uptime   : 0:28:07
+Boot Time       : 2025-08-04 13:05:42
+System Uptime   : 21:06:45
 
 --- CPU ---
 Model           : Intel64 Family 6 Model 141 Stepping 1, GenuineIntel
 Physical Cores  : 6
 Logical Cores   : 12
-Max Frequency   : 2688.00 Mhz
-Current Freq.   : 995.00 Mhz
-Total CPU Usage : 26.0%
-
---- GPU ---
-GPU 1           : NVIDIA GeForce RTX 3050 Laptop GPU
-  - Load        : 0.0%
-  - Temp        : 54.0 °C
-  - Memory Used : 0.00 B / 4.00 GB
+Max Frequency   : 2688.00 MHz
+Current Freq.   : 2688.00 MHz
+CPU Usage       : 14.1%
 
 --- Memory (RAM) ---
 Total           : 15.74 GB
-Available       : 7.31 GB
-Used            : 8.43 GB (53.6%)
-
---- Network ---
-Wi-Fi SSID      : Madhi -11112222
-Interface       : Ethernet 4 (IP: 169.254.147.87)
-Interface       : Local Area Connection* 9 (IP: 169.254.151.133)
-Interface       : Local Area Connection* 10 (IP: 169.254.218.254)
-Interface       : WiFi (IP: 192.168.137.72)
+Available       : 5.88 GB
+Used            : 9.86 GB (62.6%)
 
 --- Storage ---
-Disk (C:\)      : 130.57 GB / 201.69 GB (64.7%)
-Disk (G:\)      : 134.13 GB / 201.69 GB (66.5%)
+C:\ (C:\) : 132.46 GB / 201.69 GB (65.7%)
+G:\ (G:\) : 135.92 GB / 201.69 GB (67.4%)
+
+--- Audio ---
+Master Volume   : 58%
+
+--- Battery ---
+Battery Level   : 61%
+Plugged In      : No
+
+--- Display ---
+Resolution      : 1920 x 1080
+
+--- Applications ---
+Installed Applications (approx.): 160
