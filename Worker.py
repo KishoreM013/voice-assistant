@@ -1,62 +1,109 @@
-from time import sleep
+import subprocess
+import os
+import re
+from AI import ask_gemini
+from reader import TextNarrator
 
-from Engine import Engine
-from Compiler import Compiler
+class Worker:
+    def __init__(self):
+        self.narrator = TextNarrator()
+        self.prompt_template = """You are a Windows 11 Action Automation Bot.
 
-from pygame import mixer 
+Your job is to generate Windows-compatible CMD batch scripts that perform direct **actions** on the device based on user intent.
 
-import pandas as pd 
+You also have access to the following **Python utility scripts** (in the same directory), and you SHOULD use them whenever applicable:
 
-from speech_recognition import Recognizer
-from speech_recognition import Microphone
+✅ Available Utility Scripts:
 
-import pyttsx3 as Speaker 
-import nltk 
+1. **volume.py [level]** – Set or adjust system volume
+   - Examples:
+     - `python volume.py 50` → set volume to 50%
+     - `python volume.py +10` → increase by 10%
+     - `python volume.py -20` → decrease by 20%
 
-nltk.download('words')
-english_words = set(nltk.corpus.words.words())
+2. **launch_app.py "App Name"** – Launch applications
+   - Examples:
+     - `python launch_app.py "notepad"`
+     - `python launch_app.py "Google Chrome"`
 
-engine = Engine()
-compiler = Compiler()
-speaker = Speaker.init()
-mixer.init() 
+3. **close_active.py** – Close the currently active application window
 
-speaker.setProperty('rate', 100)
-speaker.setProperty('volume', 0.8)
+4. **workspace.py [next|prev|number]** – Switch virtual desktops/workspaces
+   - Examples:
+     - `python workspace.py next`
+     - `python workspace.py 2`
 
-def load_embeddings():
-    embedds = pd.read_csv('embeddings.csv')
-    embedds = embedds.T
-    print('Reload finished')
-    return 
+👉 You must prefer using these scripts instead of writing native CMD commands when the task matches.
 
-embedds = pd.read_csv('embeddings.csv')
-embedds = embedds.T
-print(embedds)
+🧠 Otherwise, generate raw CMD-compatible batch script that performs the required action.
 
-read_audio = Recognizer()
+🗣️ Format your output as:
 
-while True: 
-    with Microphone() as source:
-        print('Say my name.....')
-        speaker.say('Say my name')
-        speaker.runAndWait()
-        audio = read_audio.listen(source)
+    # short description of what will happen #
+
+    [CMD/Bash script here using either utilities or native commands]
+
+❌ If no action is required (like a data query or information gathering), return exactly this: --no
+
+⛔ Do NOT include:
+- Any markdown formatting
+- Any explanation
+- Any labels like "script:", etc.
+
+Only return:
+
+    # narration #
+    command...
+
+    OR: --no
+
+All commands will be executed using Windows CMD (or Git Bash if required).
+"""
+
+    def act_on_command(self, user_text: str) -> str:
+        if not user_text.strip():
+            return "No action command detected."
+
+        full_prompt = f"{self.prompt_template}\n\nUser command:\n{user_text.strip()}"
+        ai_response = ask_gemini(full_prompt).strip()
+
+        if ai_response.lower() == "--no":
+            return "No actionable command required."
+
+        narration = self._extract_narration(ai_response)
+        if narration:
+            self.narrator.extract_and_speak(f"#{narration}#")
+
+        script = self._extract_script(ai_response)
+
+        if not script:
+            return "Failed to extract script from AI response."
+
+        # Clean up before executing
+        self._clean_file("run.bat")
+
+        with open("run.bat", "w", encoding="utf-8") as f:
+            f.write(script)
 
         try:
-            text = read_audio.recognize_google(audio, language= 'en-US')
-            text = str(text) 
-            print('You are Goddamn right')
-            speaker.say('You are god damn right')
-            speaker.runAndWait()
-            if text.lower() == 'bye':
-                break 
-            text = compiler.load(text)
-            sleep(2)
+            subprocess.run(["cmd.exe", "/c", "run.bat"], check=True)
+        except subprocess.CalledProcessError as e:
+            return f"Error executing script: {e}"
 
-        except Exception as e:
-            print(e)
+        self._clean_file("run.bat")
 
+        return f"✅ Action completed: {narration}"
 
-print('Bye, See you soon')
-speaker.say('Its not an end, just a break. See you soon')
+    def _extract_narration(self, text: str) -> str:
+        match = re.search(r"#(.*?)#", text, re.DOTALL)
+        return match.group(1).strip() if match else ""
+
+    def _extract_script(self, text: str) -> str:
+        # Remove all text up to and including the last '#'
+        parts = text.rsplit("#", maxsplit=2)
+        return parts[-1].strip() if len(parts) >= 2 else ""
+
+    def _clean_file(self, filename: str):
+        if os.path.exists(filename):
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write("")
