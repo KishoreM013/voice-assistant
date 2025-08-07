@@ -1,13 +1,15 @@
+# Recorder.py
 import speech_recognition as sr
-import keyboard  # for global hotkey
+import keyboard
 import threading
 
 class AltSpeechRecognizer:
-    def __init__(self):
+    def __init__(self, callback=None):
         self.recognizer = sr.Recognizer()
         self.recording = False
         self.audio_data = None
         self.mic = sr.Microphone()
+        self.callback = callback  # function to call with the recognized text
         print("AltSpeechRecognizer initialized. Hold Alt to record speech.")
 
     def _record(self):
@@ -27,27 +29,31 @@ class AltSpeechRecognizer:
         if self.recording:
             self.recording = False
             if self.audio_data is not None:
-                try:
-                    print("Recognizing speech...")
-                    text = self.recognizer.recognize_google(self.audio_data)
-                    print("You said:", text)
-                except sr.UnknownValueError:
-                    print("Sorry, could not understand the audio.")
-                except sr.RequestError as err:
-                    print(f"Could not request results; {err}")
+                threading.Thread(target=self._recognize_and_callback, daemon=True).start()
             else:
                 print("No audio captured.")
+
+    def _recognize_and_callback(self):
+        try:
+            print("Recognizing speech...")
+            text = self.recognizer.recognize_google(self.audio_data)
+            print("You said:", text)
+            if self.callback:
+                self.callback(text)
+        except sr.UnknownValueError:
+            print("Sorry, could not understand the audio.")
+            if self.callback:
+                self.callback("")
+        except sr.RequestError as err:
+            print(f"Could not request results; {err}")
+            if self.callback:
+                self.callback("")
 
     def run(self):
         keyboard.on_press_key('alt', self._on_alt_press)
         keyboard.on_release_key('alt', self._on_alt_release)
-        print("Ready. Hold Alt and speak, release to transcribe. Press Ctrl+C to exit.")
+        print("Ready. Hold Alt and speak, release to transcribe. Press ESC to exit.")
         try:
-            while True:
-                keyboard.wait('esc')  # Or replace with another way to keep the script running
+            keyboard.wait('esc')
         except KeyboardInterrupt:
-            print("\nExiting...")
-
-if __name__ == "__main__":
-    recognizer = AltSpeechRecognizer()
-    recognizer.run()
+            print("Exiting...")

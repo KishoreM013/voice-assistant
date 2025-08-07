@@ -88,7 +88,7 @@ The system is Windows 11, and all commands will be run inside Command Prompt (CM
 
 if __name__ == "__main__":
     collector = DependencyCollector()
-    user_input = "Check battery status"
+    user_input = "read the text from the current window"
     output = collector.get_dependency(user_input)
     print("Output:", output)
     

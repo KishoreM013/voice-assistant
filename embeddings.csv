@@ -1,7 +1,0 @@
-key, application
-terminal,konsole
-settings,systemsettings
-file_explore,thunar
-discover,plasma-discover
-browser,/usr/lib/firefox-developer-edition/firefox
-text_editor,/home/kishore/.local/bin/zed
