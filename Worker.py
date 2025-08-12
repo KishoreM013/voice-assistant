@@ -2,11 +2,13 @@ import subprocess
 import os
 import re
 from AI import ask_gemini
+from get_dependenies import DependencyCollector
 from reader import TextNarrator
 
 class Worker:
     def __init__(self):
         self.narrator = TextNarrator()
+        self.dependency_collector = DependencyCollector()
         self.prompt_template = """You are a Windows 11 Action Automation Bot.
 
 Your job is to generate Windows-compatible CMD batch scripts that perform direct **actions** on the device based on user intent.
@@ -63,8 +65,8 @@ All commands will be executed using Windows CMD (or Git Bash if required).
     def act_on_command(self, user_text: str) -> str:
         if not user_text.strip():
             return "No action command detected."
-
-        full_prompt = f"{self.prompt_template}\n\nUser command:\n{user_text.strip()}"
+        dependency = self.dependency_collector.get_dependency(user_text)
+        full_prompt = f"{self.prompt_template}\n\n Dependency: {dependency} \n\nUser command:\n{user_text.strip()}"
         ai_response = ask_gemini(full_prompt).strip()
 
         if ai_response.lower() == "--no":

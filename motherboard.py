@@ -1,60 +1,123 @@
-# motherboard.py
-from Recorder import AltSpeechRecognizer
-from get_dependenies import DependencyCollector
-from Worker import Worker
-from reader import TextNarrator
+import speech_recognition as sr
+import pyttsx3
+import time
+from Worker import Worker  # Assuming Worker is defined in a separate module
+# --- Configuration ---
+WAKE_WORD = "friend"  # The word to wake up the assistant
+LISTEN_TIMEOUT = 6    # Seconds to wait for a command before sleeping
 
-class Motherboard:
+class MotherBoard:
+    """
+    A voice assistant that waits for a wake word, listens for a command,
+    and goes to sleep after a period of inactivity.
+    """
     def __init__(self):
-        self.collector = DependencyCollector()
+        """Initializes the recognizer and text-to-speech engine."""
+        self.recognizer = sr.Recognizer()
+        self.microphone = sr.Microphone()
+        
+        self.tts_engine = pyttsx3.init()
+        # Optional: Adjust voice properties
+        voices = self.tts_engine.getProperty('voices')
+        # self.tts_engine.setProperty('voice', voices[1].id) # Example: to select a female voice
+        self.tts_engine.setProperty('rate', 150) # Speed of speech
+        
+        self.is_awake = False # The assistant starts in sleep mode
         self.worker = Worker()
-        self.narrator = TextNarrator()
+        # Adjust recognizer for ambient noise
+        with self.microphone as source:
+            print("Calibrating for ambient noise, please wait...")
+            self.recognizer.adjust_for_ambient_noise(source, duration=1.5)
+            print("Calibration complete.")
 
-        self.recognizer = AltSpeechRecognizer(callback=self._process_text)
-        print("[Motherboard] Initialized. ALT = Speak | ESC = Exit")
+    def speak(self, text):
+        """Converts text to speech."""
+        print(f"Assistant: {text}")
+        self.tts_engine.say(text)
+        self.tts_engine.runAndWait()
 
-    def _say(self, message: str):
-        """Narrate and print a message."""
-        print(f"[Motherboard] {message}")
-        self.narrator.extract_and_speak(f"#{message}#")
+    def listen_for_audio(self, timeout=None):
+        """
+        Listens for audio from the microphone and converts it to text.
+        
+        Args:
+            timeout (int, optional): How long to wait for a phrase to start.
+                                     If None, it waits indefinitely.
+        
+        Returns:
+            str or None: The recognized text in lowercase, or None if not understood.
+        """
+        with self.microphone as source:
+            try:
+                print("Listening...")
+                # The timeout parameter is key for the sleep functionality
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=5)
+                
+                print("Recognizing...")
+                command = self.recognizer.recognize_google(audio).lower()
+                print(f"You said: {command}")
+                return command
+                
+            except sr.WaitTimeoutError:
+                # This error is triggered when listen() times out
+                return "timeout"
+            except sr.UnknownValueError:
+                # This happens when speech is detected but not understood
+                # We can ignore this and just keep listening
+                return None
+            except sr.RequestError as e:
+                self.speak("Could not request results from the service.")
+                print(f"API Error: {e}")
+                return None
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+                return None
 
-    def _process_text(self, text: str):
-        if not text.strip():
-            self._say("I didn't catch that. Try again.")
-            return
+    def start(self):
+        """The main loop for the voice assistant."""
+        self.speak("Assistant is now running in sleep mode.")
+        
+        while True:
+            if self.is_awake:
+                # --- ACTIVE MODE ---
+                # 1. Listen for a command with a timeout
+                command = self.listen_for_audio(timeout=LISTEN_TIMEOUT)
 
-        self._say("Processing your command.")
+                if command == "timeout":
+                    # 2. If no command is heard, go to sleep
+                    self.speak("No command received. Going back to sleep.")
+                    self.is_awake = False
+                    continue # Go to the next loop iteration (in sleep mode)
+                
+                elif command is not None:
+                    # 3. If a command is heard, process it
+                    # Here you can add your logic to handle different commands
 
-        # Step 1: Get dependencies
-        self._say("Checking system dependencies.")
-        dep_result = self.collector.get_dependency(text)
-        if dep_result and "No dependencies required." not in dep_result:
-            self._say("Dependency check complete.")
-            print(f"[Motherboard] Dependency Output:\n{dep_result}")
-            self._narrate_if_needed(dep_result)
-        else:
-            self._say("No system dependencies needed.")
+                    if "hello" in command:
+                        self.speak("Hello to you too!")
+                    elif "what time is it" in command:
+                        current_time = time.strftime("%I:%M %p")
+                        self.speak(f"The current time is {current_time}")
+                    elif "goodbye" in command or "go to sleep" in command:
+                        self.speak("Goodbye! Going to sleep.")
+                        self.is_awake = False
+                    else:
+                        self.worker.act_on_command(command)
+                    
+                    # After processing, stay awake and listen for the next command
+                    self.speak("Waiting for your next command.")
+                
+            else:
+                # --- SLEEP MODE ---
+                # 1. Listen indefinitely for the wake word
+                wake_command = self.listen_for_audio()
 
-        # Step 2: Perform action
-        self._say("Performing the requested action.")
-        action_result = self.worker.act_on_command(text)
-        if action_result and "No actionable" not in action_result:
-            self._say("Action executed.")
-            print(f"[Motherboard] Action Output:\n{action_result}")
-            self._narrate_if_needed(action_result)
-        else:
-            self._say("No action was required.")
+                # 2. If the wake word is detected, switch to active mode
+                if wake_command and WAKE_WORD in wake_command:
+                    self.is_awake = True
+                    self.speak("Listening...")
 
-        self._say("Done. Ready for next command.")
-
-    def _narrate_if_needed(self, message: str):
-        narrated = self.narrator.extract_and_speak(message)
-        if narrated:
-            print(f"[Motherboard] Narrated: {narrated}")
-
-    def run(self):
-        self._say("System is live. Hold ALT and speak. Press escape to exit.")
-        self.recognizer.run()
-
+# --- Main Execution ---
 if __name__ == "__main__":
-    Motherboard().run()
+    assistant = MotherBoard()
+    assistant.start()

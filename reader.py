@@ -2,6 +2,8 @@ import pyttsx3
 import re
 import threading
 
+_speak_lock = threading.Lock()
+
 class TextNarrator:
     def __init__(self, rate: int = 190, voice_index: int = 0):
         self.engine = pyttsx3.init()
@@ -29,4 +31,5 @@ class TextNarrator:
     def _speak(self, message: str):
         print(f"Speaking message: {message}")
         self.engine.say(message)
-        self.engine.runAndWait()
+        with _speak_lock:
+            self.engine.runAndWait()

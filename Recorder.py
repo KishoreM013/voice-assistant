@@ -1,59 +1,86 @@
-# Recorder.py
-import speech_recognition as sr
-import keyboard
 import threading
+import time
+import speech_recognition as sr
 
-class AltSpeechRecognizer:
-    def __init__(self, callback=None):
+class HotwordListener:
+    def __init__(self, hotword="slave", command_timeout=6, callback=None):
+        self.hotword = hotword.lower()
+        self.command_timeout = command_timeout
+        self.callback = callback
+
         self.recognizer = sr.Recognizer()
-        self.recording = False
-        self.audio_data = None
         self.mic = sr.Microphone()
-        self.callback = callback  # function to call with the recognized text
-        print("AltSpeechRecognizer initialized. Hold Alt to record speech.")
 
-    def _record(self):
+        self.listening = True  # overall loop control
+        self.active = False    # True when command listening active after hotword
+        self.paused = False    # pause listening during TTS
+
+        self.thread = threading.Thread(target=self._background_listen, daemon=True)
+        self.thread.start()
+
+    def _background_listen(self):
         with self.mic as source:
-            self.recognizer.adjust_for_ambient_noise(source, duration=0.2)
-            print("Recording... (Keep Alt pressed)")
-            self.audio_data = self.recognizer.listen(source)
-            print("Recording stopped.")
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        while self.listening:
+            if self.paused:
+                time.sleep(0.1)
+                continue
 
-    def _on_alt_press(self, e):
-        if not self.recording:
-            self.recording = True
-            self.audio_data = None
-            threading.Thread(target=self._record, daemon=True).start()
+            if not self.active:
+                with self.mic as source:
+                    print("[HotwordListener] Listening for hotword...")
+                    audio = self.recognizer.listen(source, phrase_time_limit=3)
+                try:
+                    text = self.recognizer.recognize_google(audio).lower()
+                    print(f"[HotwordListener] Heard: {text}")
+                    if self.hotword in text:
+                        print(f"[HotwordListener] Hotword '{self.hotword}' detected.")
+                        self.active = True
 
-    def _on_alt_release(self, e):
-        if self.recording:
-            self.recording = False
-            if self.audio_data is not None:
-                threading.Thread(target=self._recognize_and_callback, daemon=True).start()
+                        # Pause listening during TTS
+                        self.paused = True
+                        if self.callback:
+                            self.callback(f"Hotword '{self.hotword}' detected. What can I do for you?")
+                        
+                        # Wait 2 seconds after TTS before listening for command
+                        time.sleep(2)
+                        self.paused = False
+
+                        self._listen_for_command()
+                except sr.UnknownValueError:
+                    pass
+                except sr.RequestError as e:
+                    print(f"[HotwordListener] API error: {e}")
             else:
-                print("No audio captured.")
+                time.sleep(0.1)
 
-    def _recognize_and_callback(self):
+    def _listen_for_command(self):
+        with self.mic as source:
+            self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            print("[HotwordListener] Listening for command...")
+            try:
+                audio = self.recognizer.listen(source, timeout=self.command_timeout, phrase_time_limit=10)
+            except sr.WaitTimeoutError:
+                print("[HotwordListener] No speech detected during command timeout.")
+                if self.callback:
+                    self.callback("")  # empty command, timeout
+                self.active = False
+                return
         try:
-            print("Recognizing speech...")
-            text = self.recognizer.recognize_google(self.audio_data)
-            print("You said:", text)
+            command_text = self.recognizer.recognize_google(audio)
+            print(f"[HotwordListener] Command recognized: {command_text}")
             if self.callback:
-                self.callback(text)
+                self.callback(command_text)
         except sr.UnknownValueError:
-            print("Sorry, could not understand the audio.")
+            print("[HotwordListener] Could not understand command.")
             if self.callback:
                 self.callback("")
-        except sr.RequestError as err:
-            print(f"Could not request results; {err}")
+        except sr.RequestError as e:
+            print(f"[HotwordListener] API error during command recognition: {e}")
             if self.callback:
                 self.callback("")
+        self.active = False
 
-    def run(self):
-        keyboard.on_press_key('alt', self._on_alt_press)
-        keyboard.on_release_key('alt', self._on_alt_release)
-        print("Ready. Hold Alt and speak, release to transcribe. Press ESC to exit.")
-        try:
-            keyboard.wait('esc')
-        except KeyboardInterrupt:
-            print("Exiting...")
+    def stop(self):
+        self.listening = False
+        self.thread.join()
