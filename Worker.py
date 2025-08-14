@@ -1,9 +1,12 @@
 import subprocess
 import os
 import re
+import time
 from AI import ask_gemini
 from get_dependenies import DependencyCollector
 from reader import TextNarrator
+
+LOG_FILE = os.path.expanduser("~/motherboard.log")  # Shared log file
 
 class Worker:
     def __init__(self):
@@ -17,23 +20,23 @@ You also have access to the following **Python utility scripts** (in the same di
 
 ✅ Available Utility Scripts:
 
-1. **volume.py [level]** – Set or adjust system volume
+1. **C:/Utils/volume.py [level]** – Set or adjust system volume
    - Examples:
-     - `python volume.py 50` → set volume to 50%
-     - `python volume.py +10` → increase by 10%
-     - `python volume.py -20` → decrease by 20%
+     - `python C:/Utils/volume.py 50` → set volume to 50%
+     - `python C:/Utils/volume.py +10` → increase by 10%
+     - `python C:/Utils/volume.py -20` → decrease by 20%
 
-2. **launch_app.py "App Name"** – Launch applications
+2. **C:/Utils/launch_app.py "App Name"** – Launch applications
    - Examples:
-     - `python launch_app.py "notepad"`
-     - `python launch_app.py "Google Chrome"`
+     - `python C:/Utils/launch_app.py "notepad"`
+     - `python C:/Utils/launch_app.py "Google Chrome"`
 
-3. **close_active.py** – Close the currently active application window
+3. **C:/Utils/close_active.py** – Close the currently active application window
 
-4. **workspace.py [next|prev|number]** – Switch virtual desktops/workspaces
+4. **C:/Utils/workspace_navigator.py [next|prev|number]** – Switch virtual desktops/workspaces
    - Examples:
-     - `python workspace.py next`
-     - `python workspace.py 2`
+     - `python C:/Utils/workspace_navigator.py next`
+     - `python C:/Utils/workspace_navigator.py 2`
 
 👉 You must prefer using these scripts instead of writing native CMD commands when the task matches.
 
@@ -62,37 +65,52 @@ Only return:
 All commands will be executed using Windows CMD (or Git Bash if required).
 """
 
+        self.log_event("Worker initialized and ready.")
+
+    def log_event(self, message):
+        """Log events with timestamps and class tag."""
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] [Worker] {message}\n")
+        print(f"[Worker] {message}")
+
     def act_on_command(self, user_text: str) -> str:
         if not user_text.strip():
+            self.log_event("No action command detected.")
             return "No action command detected."
-        dependency = self.dependency_collector.get_dependency(user_text)
-        full_prompt = f"{self.prompt_template}\n\n Dependency: {dependency} \n\nUser command:\n{user_text.strip()}"
+
+        self.log_event(f"Received command: {user_text.strip()}")
+        dependency = self.dependency_collector.get_dependency(user_text) or ""
+        self.log_event(f"Dependency data collected ({len(dependency)} characters).")
+
+        full_prompt = f"{self.prompt_template}\n\nDependency:\n{dependency}\n\nUser command:\n{user_text.strip()}"
         ai_response = ask_gemini(full_prompt).strip()
+        self.log_event(f"AI response received ({len(ai_response)} characters).")
 
         if ai_response.lower() == "--no":
+            self.log_event("No actionable command required.")
             return "No actionable command required."
 
         narration = self._extract_narration(ai_response)
         if narration:
-            self.narrator.extract_and_speak(f"#{narration}#")
+            self.log_event(f"Narration extracted: {narration}")
+            self.narrator.extract_and_speak(narration)
 
         script = self._extract_script(ai_response)
-
         if not script:
+            self.log_event("Failed to extract script from AI response.")
             return "Failed to extract script from AI response."
-
-        # Clean up before executing
-        self._clean_file("run.bat")
 
         with open("run.bat", "w", encoding="utf-8") as f:
             f.write(script)
+        self.log_event("run.bat written with action script.")
 
         try:
             subprocess.run(["cmd.exe", "/c", "run.bat"], check=True)
+            self.log_event("Script executed successfully.")
         except subprocess.CalledProcessError as e:
+            self.log_event(f"Error executing script: {e}")
             return f"Error executing script: {e}"
-
-        self._clean_file("run.bat")
 
         return f"✅ Action completed: {narration}"
 
@@ -101,7 +119,6 @@ All commands will be executed using Windows CMD (or Git Bash if required).
         return match.group(1).strip() if match else ""
 
     def _extract_script(self, text: str) -> str:
-        # Remove all text up to and including the last '#'
         parts = text.rsplit("#", maxsplit=2)
         return parts[-1].strip() if len(parts) >= 2 else ""
 
@@ -109,3 +126,4 @@ All commands will be executed using Windows CMD (or Git Bash if required).
         if os.path.exists(filename):
             with open(filename, "w", encoding="utf-8") as f:
                 f.write("")
+            self.log_event(f"File {filename} cleaned.")

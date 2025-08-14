@@ -1,6 +1,6 @@
 from google import genai
 
-def ask_gemini(prompt: str, api_key: str , model: str = "gemini-2.5-flash") -> str:
+def ask_gemini(prompt: str, api_key: str = "AIzaSyArtcmCgpWqdI5myq-FoLqsRWEhqi9gAWA" , model: str = "gemini-2.5-flash") -> str:
     """
     Send a prompt to Gemini AI and return the response as a string.
 
@@ -24,5 +24,5 @@ if __name__ == "__main__":
     API_KEY = "AIzaSyArtcmCgpWqdI5myq-FoLqsRWEhqi9gAWA"
     
     prompt_text = "Summarize the main events in World War II."
-    reply = ask_gemini(prompt_text, api_key=API_KEY)
+    reply = ask_gemini(prompt_text, API_KEY)
     print("Gemini says:", reply)
